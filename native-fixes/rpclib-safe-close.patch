@@ -1,0 +1,68 @@
+diff --git a/include/rpc/detail/async_writer.h b/include/rpc/detail/async_writer.h
+index 62272fb..c3151ce 100644
+--- a/include/rpc/detail/async_writer.h
++++ b/include/rpc/detail/async_writer.h
+@@ -57,7 +57,7 @@ public:
+                             LOG_WARN("std::system_error during socket shutdown. "
+                                      "Code: {}. Message: {}", e.value(), e.message());
+                         }
+-                        socket_.close();
++                        socket_.close(e);
+                     }
+                 }));
+     }
+diff --git a/lib/rpc/detail/server_session.cc b/lib/rpc/detail/server_session.cc
+index d926be0..4f1639c 100644
+--- a/lib/rpc/detail/server_session.cc
++++ b/lib/rpc/detail/server_session.cc
+@@ -29,27 +29,38 @@ server_session::server_session(server *srv, RPCLIB_ASIO::io_service *io,
+                                               // [sztomi 2016-01-13]
+ }
+ 
+-void server_session::start() { do_read(); }
++void server_session::start() {
++    auto self(shared_from_base<server_session>());
++    write_strand_.post([this, self]() { do_read(); });
++}
+ 
+ void server_session::close() {
+     auto self(shared_from_base<server_session>());
+     LOG_INFO("Closing session.");
+     exit_ = true;
+     write_strand_.post([this, self]() {
+-        socket_.close();
++        // All descriptor operations run on the same strand. close() can be
++        // requested by EOF, server shutdown, and a pending write completion.
++        if (exited_) { return; }
++        exited_ = true;
++        std::error_code ignored;
++        socket_.cancel(ignored);
++        socket_.shutdown(RPCLIB_ASIO::ip::tcp::socket::shutdown_both, ignored);
++        socket_.close(ignored);
+         if (parent_)
+             parent_->close_session(self);
+     });
+ }
+ 
+ void server_session::do_read() {
++    if (exit_) { return; }
+     auto self(shared_from_base<server_session>());
+     constexpr std::size_t max_read_bytes = default_buffer_size;
+     socket_.async_read_some(
+         RPCLIB_ASIO::buffer(pac_.buffer(), default_buffer_size),
+         // I don't think max_read_bytes needs to be captured explicitly
+         // (since it's constexpr), but MSVC insists.
+-        read_strand_.wrap([this, self, max_read_bytes](std::error_code ec,
++        write_strand_.wrap([this, self, max_read_bytes](std::error_code ec,
+                                                        std::size_t length) {
+             if (exit_) { return; }
+             if (!ec) {
+@@ -140,7 +151,7 @@ void server_session::do_read() {
+             }
+         }));
+     if (exit_) {
+-        socket_.close();
++        close();
+     }
+ }
+ 

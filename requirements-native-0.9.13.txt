@@ -1,0 +1,5 @@
+# Install into the matching CARLA Python3.8 environment, not the web .venv.
+# carla0.9.13 itself is provided by the user's existing simulator environment.
+networkx==3.1
+Shapely==1.8.5.post1
+# Existing P4 environment also supplies numpy/scipy/opencv-python.

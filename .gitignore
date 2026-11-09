@@ -1,0 +1,22 @@
+.venv/
+node_modules/
+frontend/dist/
+runtime/*
+!runtime/.gitkeep
+__pycache__/
+.pytest_cache/
+*.pyc
+test-results/
+playwright-report/
+*.log
+# Native repair build products and recoverable originals
+native-fixes/rpclib/
+native-fixes/rpc-build/
+native-fixes/backups/
+native-fixes/staging/
+native-fixes/packaged/
+native-fixes/*.full
+native-fixes/*.psym
+native-fixes/test_close_old
+native-fixes/test_close_fixed
+native-fixes/installed-manifest.txt
